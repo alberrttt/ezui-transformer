@@ -1,0 +1,28 @@
+{
+  "name": "ezui-transformer",
+  "version": "0.1.0",
+  "description": "",
+  "main": "out/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc",
+    "build-watch": "tsc -w",
+    "postinstall": "node out/download_classes.js"
+  },
+  "keywords": [
+    "svelte",
+    "roblox-ts"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "prettier": "^3.1.0",
+    "ts-results": "^3.3.0",
+    "tslib": "^2.6.2",
+    "typescript": "^5.2.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.9.2",
+    "@types/ts-expose-internals": "npm:ts-expose-internals@5.2.2"
+  }
+}
