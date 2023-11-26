@@ -43,6 +43,7 @@ export class JsxExpressionClass extends Child {
 	}
 
 	public build(): TResult<readonly [Identifier | undefined, Statement[]]> {
+		const component = this.parent_component;
 		if (!this.expression) {
 			return Err([
 				ts.createDiagnosticForNode(this.node, {
@@ -58,7 +59,7 @@ export class JsxExpressionClass extends Child {
 		if (ts.isIdentifier(this.expression)) {
 			ident = this.expression;
 		} else {
-			ident = this.parent_component.allocate_variable(
+			ident = component.allocate_variable(
 				`${this.parent_ident.text}_jsx_expression`,
 			);
 			statements.push(quote`const ${ident.text} = ${this.expression}`);
@@ -140,6 +141,7 @@ export class ElementClass extends Child {
 	}
 	public build(): TResult<readonly [Identifier | undefined, Statement[]]> {
 		const statements = new Array<Statement>();
+		const component = this.parent_component;
 		if (ts.isJsxFragment(this.node)) {
 			for (const child of this.children) {
 				child.parent_ident = this.parent_ident;
@@ -152,17 +154,29 @@ export class ElementClass extends Child {
 		}
 		const node = this.node;
 		const opening_tag = ts.isJsxElement(node) ? node.openingElement : node;
-		const ident = this.parent_component.allocate_variable(
-			this.tag_name.toLowerCase(),
-		);
+		const ident = component.allocate_variable(this.tag_name.toLowerCase());
 		if (this.class_name === undefined) {
-			const props = new Array<ts.PropertyAssignment>();
+			const prop_statement_index = component.statements.length;
+			component.statements.push(factory.createEmptyStatement());
+			const prop_ident = component.allocate_variable(
+				`${ident.text}_props`,
+			);
+
+			const property_assignments = new Array<ts.PropertyAssignment>();
+
 			for (const property of opening_tag.attributes.properties) {
 				if (ts.isJsxAttribute(property)) {
 					const [initializer, deps] =
 						this.transform_initializer(property);
-
-					props.push(
+					if (deps.length > 0) {
+						component.statements.push(
+							quote`getter(${prop_ident}, "${property.name.getText()}", () => {
+								return ${initializer}
+							})`,
+						);
+						continue;
+					}
+					property_assignments.push(
 						factory.createPropertyAssignment(
 							factory.createStringLiteral(
 								property.name.getText(),
@@ -172,12 +186,26 @@ export class ElementClass extends Child {
 					);
 				}
 			}
+			component.statements[prop_statement_index] =
+				factory.createVariableStatement(
+					[],
+					factory.createVariableDeclarationList(
+						[
+							factory.createVariableDeclaration(
+								prop_ident,
+								undefined,
+								// todo: use the prop type
+								factory.createTypeReferenceNode("any"),
+								factory.createObjectLiteralExpression(
+									property_assignments,
+								),
+							),
+						],
+						ts.NodeFlags.Let,
+					),
+				);
 			statements.push(
-				quote`const ${ident} = ${
-					this.tag_name
-				}( ${factory.createObjectLiteralExpression(props)},${
-					this.parent_ident
-				})`,
+				quote`const ${ident} = ${this.tag_name}(${prop_ident}, ${this.parent_ident} )`,
 			);
 			return Ok([ident, statements]);
 		}
@@ -219,9 +247,7 @@ export class ElementClass extends Child {
 						(symbol) => this.state.stateful_symbols.get(symbol)!,
 					);
 					statements.push(
-						quote`ezui.render_effect(() => { ${assignment} }, ${factory.createArrayLiteralExpression(
-							idents,
-						)})`,
+						quote`ezui.render_effect(() => { ${assignment} })`,
 					);
 				}
 			}

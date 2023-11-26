@@ -13,6 +13,12 @@ export class State {
 		public ctx: ts.TransformationContext,
 		public is_verbose: boolean,
 	) {}
+	public symbol_is_defined_by_component(symbol: ts.Symbol): boolean {
+		return (
+			this.current_component?.symbols_defined_by_component.has(symbol) ??
+			false
+		);
+	}
 	public symbol_is_stateful(symbol: ts.Symbol): boolean {
 		const is_alias = (symbol.flags & SymbolFlags.Alias) !== 0;
 		const is_transient = (symbol.flags & SymbolFlags.Transient) !== 0;
@@ -118,7 +124,7 @@ function collect_file_info(file: ts.SourceFile, state: State) {
 	const normalizedPath = path.normalize(file_name);
 
 	const pathComponents = normalizedPath.split(path.sep);
-	const ezuiIndex = pathComponents.indexOf("ezui");
+	const ezuiIndex = pathComponents.indexOf("ezui-core");
 
 	if (ezuiIndex === -1 || ezuiIndex >= pathComponents.length - 2) {
 		return;

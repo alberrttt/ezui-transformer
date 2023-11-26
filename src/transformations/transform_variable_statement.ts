@@ -13,18 +13,22 @@ export function transform_variable_statement(
 	state: State,
 ): ts.VariableStatement {
 	const declarations = new Array<ts.VariableDeclaration>();
+
 	declarations: for (const declaration of node.declarationList.declarations) {
+		const is_component = !!state.current_component;
+		const init = declaration.initializer;
+
+		const declaration_symbol = state.type_checker.getSymbolAtLocation(
+			declaration.name,
+		);
 		for (;;) {
+			let type = declaration.type;
+
 			const is_export = ts.hasSyntacticModifier(
 				node,
 				ts.ModifierFlags.Export,
 			);
-			const is_component = !!state.current_component;
-			const init = declaration.initializer;
 
-			const declaration_symbol = state.type_checker.getSymbolAtLocation(
-				declaration.name,
-			);
 			if (!declaration_symbol) break;
 			let [initializer, info] = init
 				? state.capture_info(() =>
@@ -57,6 +61,9 @@ export function transform_variable_statement(
 			}
 			let exclaimationToken = declaration.exclamationToken;
 			if (is_component) {
+				state.current_component!.symbols_defined_by_component.add(
+					declaration_symbol,
+				);
 				if (ts.isIdentifier(declaration.name)) {
 					state.current_component!.allocate_variable(
 						declaration.name,
@@ -64,12 +71,16 @@ export function transform_variable_statement(
 				}
 				if (is_export) {
 					initializer = initializer
-						? quoteExpr`__props__["${declaration.name}"] ? __props__["${declaration.name}"] : ${initializer}`
-						: quoteExpr`__props__["${declaration.name}"] ? __props__["${declaration.name}"] : undefined	`;
-					initializer = factory.createAsExpression(
-						initializer,
-						factory.createTypeReferenceNode("any"),
-					);
+						? quoteExpr`ezui.prop_source(__props__,"${declaration.name}",${initializer})`
+						: quoteExpr`ezui.prop_source(__props__,"${declaration.name}")`;
+					type = undefined;
+					const name = declaration.name;
+					const name_symbol =
+						state.type_checker.getSymbolAtLocation(name);
+					if (!name_symbol) throw new Error("expected symbol");
+					if (!ts.isIdentifier(name)) throw new Error("expected id");
+					state.stateful_symbols.set(name_symbol, name);
+
 					exclaimationToken = undefined;
 				}
 			}
@@ -78,11 +89,16 @@ export function transform_variable_statement(
 					declaration,
 					declaration.name,
 					exclaimationToken,
-					declaration.type,
+					type,
 					initializer,
 				),
 			);
 			continue declarations;
+		}
+		if (is_component && declaration_symbol) {
+			state.current_component!.symbols_defined_by_component.add(
+				declaration_symbol,
+			);
 		}
 		declarations.push(declaration);
 	}

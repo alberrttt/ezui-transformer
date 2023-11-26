@@ -10,11 +10,14 @@ export function transform_property_access_expression(
 	for (;;) {
 		const symbol = state.type_checker.getSymbolAtLocation(node);
 		if (!symbol) break;
-		const stateful = state.symbol_is_stateful(symbol);
-		if (!stateful) break;
-
+		const is_stateful = state.symbol_is_stateful(symbol);
+		if (is_stateful || !state.symbol_is_defined_by_component(symbol)) {
+			state.stateful_dependencies.push(symbol);
+		}
+		if (!is_stateful) break;
+		state.info.is_$state_macro = true;
 		return Ok(quoteExpr`ezui.get(${node}))`);
 	}
-	
+
 	return Ok(state.transform(node));
 }

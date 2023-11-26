@@ -25,6 +25,8 @@ export class Component {
 	// use this to generate unique identifiers
 	public ident_count = new Map<string, number>();
 	public statements = new Array<ts.Statement>();
+	public symbols_defined_by_component = new Set<ts.Symbol>();
+
 	public element: ElementClass | undefined;
 	public stateful_symbols = new Map<ts.Symbol, Identifier>();
 	public add_variable(
@@ -34,7 +36,10 @@ export class Component {
 	): Identifier {
 		const ident = this.allocate_variable(name);
 		this.statements.push(
-			quote`let ${ident}${init ? `= ${print_ast(init)}` : ""}`,
+			factory.createVariableStatement(
+				[],
+				[factory.createVariableDeclaration(name, undefined, ty, init)],
+			),
 		);
 		return ident;
 	}
@@ -83,6 +88,7 @@ export class Component {
 	}
 
 	public build() {
+		const name = this.module_declaration.name;
 		const rendered = new Array<ts.Identifier>();
 		this.state.current_component = this;
 
@@ -122,8 +128,43 @@ export class Component {
 		);
 
 		const prop_members = new Array<ts.PropertySignature>();
+		prop_ty.getProperties().forEach((prop) => {
+			const ty = this.state.type_checker.getTypeOfSymbolAtLocation(
+				prop,
+				this.module_declaration,
+			);
 
+			prop_members.push(
+				factory.createPropertySignature(
+					[],
+					prop.name,
+					undefined,
+					factory.createParenthesizedType(
+						this.state.type_checker.typeToTypeNode(
+							ty,
+							undefined,
+							undefined,
+							undefined,
+						) || factory.createTypeReferenceNode("never"),
+					),
+				),
+			);
+		});
 		const final_prop_type = factory.createTypeLiteralNode(prop_members);
+		const typeName = factory.createIdentifier(
+			`__${this.module_declaration.name.text}__props`,
+		);
+		this.state.prereqs.push(
+			factory.createTypeAliasDeclaration(
+				[],
+				typeName,
+				[],
+				factory.createTypeReferenceNode(
+					factory.createIdentifier("FCProps"),
+					[final_prop_type],
+				),
+			),
+		);
 
 		this.state.current_component = undefined;
 		return factory.createFunctionDeclaration(
@@ -135,19 +176,9 @@ export class Component {
 				factory.createParameterDeclaration(
 					[],
 					undefined,
-					"__props__",
+					`__props__`,
 					undefined,
-					factory.createTypeReferenceNode(
-						factory.createIdentifier("Record"),
-						[
-							factory.createKeywordTypeNode(
-								ts.SyntaxKind.StringKeyword,
-							),
-							factory.createKeywordTypeNode(
-								ts.SyntaxKind.UnknownKeyword,
-							),
-						],
-					),
+					factory.createTypeReferenceNode(typeName),
 				),
 				factory.createParameterDeclaration(
 					[],

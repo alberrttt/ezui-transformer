@@ -10,8 +10,10 @@ export function transform_identifier(
 	const symbol = state.type_checker.getSymbolAtLocation(node);
 	if (!symbol) return Ok(node);
 	const is_stateful = state.stateful_symbols.has(symbol);
-	if (is_stateful) {
+	if (is_stateful || state.symbol_is_defined_by_component(symbol)) {
 		state.stateful_dependencies.push(symbol);
+	}
+	if (is_stateful) {
 		return Ok(quoteExpr`ezui.get(${node})`);
 	}
 	return Ok(state.transform(node));

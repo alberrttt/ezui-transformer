@@ -11,12 +11,17 @@ export function transform_call_expression(
 	const name = node.expression;
 	const name_symbol = state.type_checker.getSymbolAtLocation(name);
 	if (!name_symbol) return Ok(state.transform(node));
+	if (state.symbol_is_macro(name_symbol, "$effect")) {
+		const argument = node.arguments[0];
 
+		return Ok(quoteExpr`ezui.user_effect(${state.transform(argument)})`);
+	}
 	if (state.symbol_is_macro(name_symbol, "$fnc")) {
 		const argument = node.arguments[0];
 		if (!ts.isIdentifier(argument)) throw new Error("expected identifier");
+
 		return Ok(
-			quoteExpr`(p:Record<string,unknown>,c:Instance) => ${argument}(p,c)`,
+			quoteExpr`(p:__${argument.text}__props,c:Instance) => ${argument}(p,c)`,
 		);
 	}
 	if (state.symbol_is_macro(name_symbol, "$mount")) {

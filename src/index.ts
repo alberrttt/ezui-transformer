@@ -2,7 +2,6 @@ import ts from "typescript";
 import { State } from "./classes/state";
 import { transform_source_file } from "./transform_source_file";
 import {} from "ts-expose-internals";
-import { print_ast } from "./util";
 declare global {
 	interface TransformerConfig {}
 }
@@ -15,7 +14,7 @@ export = (program: ts.Program, config: TransformerConfig) => {
 			console.log("\nrunning ezui-transformer in verbose");
 		}
 
-		return (file	) => {
+		return (file) => {
 			if (!state.has_collected_info) {
 				state.collect_info();
 			}
